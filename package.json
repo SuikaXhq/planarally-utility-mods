@@ -1,12 +1,16 @@
 {
-  "name": "planarally-utility-mods",
-  "version": "0.0.1",
-  "description": "Utility mods and a mod loader for PA.",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "SuikaXhq",
-  "license": "MIT"
+    "name": "@planarally-mods/planarally-utility-mods",
+    "version": "0.0.1",
+    "description": "Utility mods and a mod loader for PA.",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "suikaxhq",
+    "license": "MIT",
+    "devDependencies": {
+        "@tsconfig/node18": "^18.2.0",
+        "typescript": "^5.1.6"
+    }
 }
