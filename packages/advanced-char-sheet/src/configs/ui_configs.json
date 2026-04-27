@@ -1,0 +1,23 @@
+{
+    "weaponTag": "武器",
+    "statLabels": {
+        "str": "力量",
+        "dex": "敏捷",
+        "con": "体质",
+        "int": "智力",
+        "wis": "感知",
+        "cha": "魅力"
+    },
+    "proficiencyLevels": [
+        { "label": "无", "value": 0 },
+        { "label": "涉猎", "value": 0.5 },
+        { "label": "熟练", "value": 1 },
+        { "label": "精通", "value": 2 }
+    ],
+    "skillColumns": [
+        { "key": "name", "label": "技能" },
+        { "key": "baseStat", "label": "属性", "align": "center", "width": "56px" },
+        { "key": "modifier", "label": "加值", "align": "center", "width": "66px" },
+        { "key": "proficiency", "label": "熟练", "align": "center", "width": "76px" }
+    ]
+}

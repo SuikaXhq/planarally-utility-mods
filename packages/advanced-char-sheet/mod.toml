@@ -1,0 +1,11 @@
+[mod]
+apiSchema = "0.1.0"
+tag = "advchar"
+name = "Advanced Char Sheet"
+version = "0.1.0"
+author = "Your Name"
+shortDescription = "An advanced char sheet using custom UI components"
+
+description = """
+This mod adds an advanced character sheet using the UI kit.
+"""

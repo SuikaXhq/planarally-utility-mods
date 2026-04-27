@@ -1,0 +1,30 @@
+{
+    "defaultStats": {
+        "str": 10,
+        "dex": 10,
+        "con": 10,
+        "int": 10,
+        "wis": 10,
+        "cha": 10
+    },
+    "defaultSkills": [
+        { "name": "athletics", "baseStat": "str", "proficiency": 0 },
+        { "name": "acrobatics", "baseStat": "dex", "proficiency": 0 },
+        { "name": "sleightOfHand", "baseStat": "dex", "proficiency": 0 },
+        { "name": "stealth", "baseStat": "dex", "proficiency": 0 },
+        { "name": "arcana", "baseStat": "int", "proficiency": 0 },
+        { "name": "history", "baseStat": "int", "proficiency": 0 },
+        { "name": "investigation", "baseStat": "int", "proficiency": 0 },
+        { "name": "nature", "baseStat": "int", "proficiency": 0 },
+        { "name": "religion", "baseStat": "int", "proficiency": 0 },
+        { "name": "animalHandling", "baseStat": "wis", "proficiency": 0 },
+        { "name": "insight", "baseStat": "wis", "proficiency": 0 },
+        { "name": "medicine", "baseStat": "wis", "proficiency": 0 },
+        { "name": "perception", "baseStat": "wis", "proficiency": 0 },
+        { "name": "survival", "baseStat": "wis", "proficiency": 0 },
+        { "name": "deception", "baseStat": "cha", "proficiency": 0 },
+        { "name": "intimidation", "baseStat": "cha", "proficiency": 0 },
+        { "name": "performance", "baseStat": "cha", "proficiency": 0 },
+        { "name": "persuasion", "baseStat": "cha", "proficiency": 0 }
+    ]
+}

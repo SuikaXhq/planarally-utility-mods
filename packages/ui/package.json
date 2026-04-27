@@ -1,0 +1,14 @@
+{
+  "name": "@planarally-mods/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    }
+  },
+  "dependencies": {
+    "vue": "^3.3.4"
+  }
+}
