@@ -18,5 +18,14 @@ export default defineConfig({
             fileName: (format) => `pa-api.${format}.js`,
             name: "pa-api",
         },
+        rollupOptions: {
+            external: ["vue", "vue-demi"],
+            output: {
+                globals: {
+                    vue: "Vue",
+                    "vue-demi": "VueDemi",
+                },
+            },
+        },
     },
 });

@@ -1,0 +1,9 @@
+{
+    "proficiencyBonus": [
+        { "minLevel": 1, "maxLevel": 4, "bonus": 2 },
+        { "minLevel": 5, "maxLevel": 8, "bonus": 3 },
+        { "minLevel": 9, "maxLevel": 12, "bonus": 4 },
+        { "minLevel": 13, "maxLevel": 16, "bonus": 5 },
+        { "minLevel": 17, "maxLevel": 20, "bonus": 6 }
+    ]
+}

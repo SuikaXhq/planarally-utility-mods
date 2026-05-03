@@ -20,8 +20,23 @@ export interface Skill {
 }
 
 export interface RecordItem {
+    id: string;
     name: string;
     description: string;
+    hasTracker?: boolean;
+    trackerName?: string; // 绑定的 tracker 显示名称，默认等于 name
+    uses?: {
+        current: number;
+        max: number;
+    };
+}
+
+export interface ClassItem {
+    id: string;
+    name: string;
+    level: number;
+    hitDice: string;
+    hitDiceCurrent: number;
 }
 
 // 物品/武器定义
@@ -38,31 +53,40 @@ export interface Item {
     scalingStat?: 'str' | 'dex'; // 主要属性：力量或敏捷
 }
 
+export interface TrackerMappings {
+    hp: string | null;
+    ac: string | null;
+    records: Record<string, string>; // RecordItem ID -> Tracker UUID
+    classes: Record<string, string>; // ClassItem ID -> Tracker UUID
+}
+
 export interface CharSheetData {
     stats: CharacterStats;
     saveProficiencies: Record<string, boolean>;
     proficiencyBonus: number;
     level: number;
+    classes: ClassItem[];
+    exp: number;
+    speed: number;
     hp: {
         current: number;
         max: number;
         temp: number;
     };
-    hitDice: {
-        current: number;
-        max: number;
-    };
     ac: number;
     conditions: string[];
     skills: Skill[];
-    features: RecordItem[]; // 特性
-    feats: RecordItem[];    // 专长
-    otherProficiencies: RecordItem[]; // 其他熟练项（语言、工具等）
+    records: {
+        features: RecordItem[];
+        feats: RecordItem[];
+        otherProficiencies: RecordItem[];
+    };
     equipment: {
         items: Item[];
         mainHandId: string | null;
         offHandId: string | null;
     };
+    trackerMappings: TrackerMappings;
 }
 
 export const DEFAULT_STATS: CharacterStats = defaultData.defaultStats as CharacterStats;
@@ -75,19 +99,29 @@ export function defaultCharSheetData(): CharSheetData {
         saveProficiencies: { str: false, dex: false, con: false, int: false, wis: false, cha: false },
         proficiencyBonus: 2,
         level: 1,
+        classes: [],
+        exp: 0,
+        speed: 30,
         hp: { current: 10, max: 10, temp: 0 },
-        hitDice: { current: 1, max: 1 },
         ac: 10,
         conditions: [],
         skills: DEFAULT_SKILLS.map((s) => ({ ...s })),
-        features: [],
-        feats: [],
-        otherProficiencies: [],
+        records: {
+            features: [],
+            feats: [],
+            otherProficiencies: [],
+        },
         equipment: {
             items: [],
             mainHandId: null,
             offHandId: null,
         },
+        trackerMappings: {
+            hp: null,
+            ac: null,
+            records: {},
+            classes: {}
+        }
     };
 }
 

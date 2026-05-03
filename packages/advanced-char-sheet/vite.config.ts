@@ -6,7 +6,7 @@ import { exec } from "child_process";
 const deployPlugin = () => ({
     name: 'deploy-plugin',
     closeBundle() {
-        exec("node deploy.mjs", (err, stdout, stderr) => {
+        exec("node scripts/deploy.mjs", (err, stdout, stderr) => {
             if (stdout) console.log(stdout);
             if (stderr) console.error(stderr);
         });

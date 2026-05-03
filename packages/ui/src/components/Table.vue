@@ -78,6 +78,9 @@ function toggleCollapse() {
                 </tr>
             </tbody>
         </table>
+        <div v-if="!collapsed" class="pa-ui-table-footer">
+            <slot name="footer"></slot>
+        </div>
     </div>
 </template>
 

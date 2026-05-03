@@ -12,8 +12,11 @@ const props = withDefaults(defineProps<{
     maxWidth?: string;
     /** 最大高度 */
     maxHeight?: string;
+    /** 是否禁用 */
+    disabled?: boolean;
 }>(), {
     placement: 'top',
+    disabled: false,
 });
 
 const isVisible = ref(false);
@@ -65,6 +68,7 @@ function updatePosition() {
 }
 
 function show() {
+    if (props.disabled) return;
     if (hideTimer) {
         clearTimeout(hideTimer);
         hideTimer = null;

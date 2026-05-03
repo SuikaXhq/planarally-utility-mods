@@ -182,15 +182,28 @@ function handleRoll(expr: string) {
                 <template #empty>
                     <div class="empty-hint">{{ t('ui.emptyEquipment', 'No equipment added. Click below to add.') }}</div>
                 </template>
+                <template #footer>
+                    <div class="table-footer-wrapper">
+                        <Button class="add-button" size="small" type="secondary" @click="addItem">+ {{ t('ui.addEquipment', 'Add Equipment') }}</Button>
+                    </div>
+                </template>
             </Table>
-            <div class="table-footer">
-                <Button size="small" @click="addItem">+ {{ t('ui.addEquipment', 'Add Equipment') }}</Button>
-            </div>
         </section>
     </div>
 </template>
 
 <style scoped>
+.table-footer-wrapper {
+    display: flex;
+    justify-content: center;
+    background: white;
+    padding: 0.8rem;
+    border-top: 1px dashed #ddd;
+}
+
+.add-button {
+    width: 100%;
+}
 .equipment-block {
     display: flex;
     flex-direction: column;

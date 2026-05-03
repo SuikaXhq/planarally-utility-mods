@@ -376,4 +376,23 @@ export interface ModEvents {
         delta: Partial<Tracker>,
         syncTo: Sync,
     ) => Partial<Tracker>;
+
+    onTrackerAdded?: (id: LocalId, tracker: Tracker, syncTo: Sync) => void;
+    onTrackerUpdated?: (id: LocalId, trackerId: TrackerId, delta: Partial<Tracker>, syncTo: Sync) => void;
+    onTrackerRemoved?: (id: LocalId, trackerId: TrackerId, syncTo: Sync) => void;
+
+    preCustomDataUpdate?: (
+        id: LocalId,
+        element: UiShapeCustomData,
+        delta: Partial<ApiShapeCustomData>,
+        syncTo: Sync,
+    ) => Partial<ApiShapeCustomData>;
+
+    onCustomDataAdded?: (id: LocalId, element: UiShapeCustomData, syncTo: Sync) => void;
+    onCustomDataUpdated?: (id: LocalId, elementId: ElementId, delta: Partial<ApiShapeCustomData>, syncTo: Sync) => void;
+    onCustomDataRemoved?: (id: LocalId, elementId: ElementId, syncTo: Sync) => void;
 }
+
+export { proxyModEvents } from "./eventBus.js";
+export { useTracker } from "./composables/useTracker.js";
+export { useCustomData } from "./composables/useCustomData.js";
