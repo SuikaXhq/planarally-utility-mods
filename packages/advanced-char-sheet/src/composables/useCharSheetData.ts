@@ -4,6 +4,7 @@ import type { CharSheetData, RecordItem } from "../data";
 import { defaultCharSheetData } from "../data";
 import { api } from "../main";
 import { SyncManager } from "../managers/SyncManager";
+import { validateCharSheetData } from "../utils/validator";
 import levelConfig from "../configs/level_config.json";
 
 /**
@@ -140,9 +141,6 @@ export function useCharSheetData() {
     // 记录当前正在加载的 shapeId
     const currentShapeId = ref<LocalId | undefined>();
 
-    // 防止循环更新的标志
-    let skipNextSync = false;
-
     // 监听当前选中的 shape
     watch(
         () => {
@@ -167,58 +165,6 @@ export function useCharSheetData() {
         { immediate: true },
     );
 
-    // 监听由外部 Tracker 更改触发的重载信号
-    watch(SyncManager.forceReload, () => {
-        skipNextSync = true;
-        refreshFromDataBlock();
-    });
-
-    /**
-     * 从底层 DataBlock 刷新响应式 data 的数值字段。
-     * 用于外部 Tracker 变更后同步回 UI。
-     */
-    function refreshFromDataBlock() {
-        if (currentShapeId.value === undefined) return;
-        const globalId = api.getGlobalId(currentShapeId.value);
-        if (!globalId) return;
-
-        const db = api.getDataBlock<Record<string, unknown>, CharSheetData>({
-            category: "shape",
-            shape: globalId,
-            name: "char-sheet"
-        });
-        if (!db) return;
-
-        // 同步所有可能被外部 Tracker 修改的字段
-        data.value.hp.current = db.data.hp.current;
-        data.value.hp.max = db.data.hp.max;
-        data.value.hp.temp = db.data.hp.temp;
-        data.value.ac = db.data.ac;
-
-
-        // 同步 records 中有 tracker 绑定的项目的 uses 数据
-        for (const category of ["features", "feats", "otherProficiencies"] as const) {
-            const dbRecords = db.data.records[category];
-            const localRecords = data.value.records[category];
-            for (let i = 0; i < localRecords.length; i++) {
-                const dbItem = dbRecords.find(r => r.id === localRecords[i].id);
-                if (dbItem?.uses && localRecords[i].hasTracker) {
-                    localRecords[i].uses = { ...dbItem.uses };
-                }
-            }
-        }
-
-        // 同步 classes 的 hitDiceCurrent
-        const dbClasses = db.data.classes;
-        const localClasses = data.value.classes;
-        for (let i = 0; i < localClasses.length; i++) {
-            const dbClass = dbClasses.find(c => c.id === localClasses[i].id);
-            if (dbClass && dbClass.hitDiceCurrent !== undefined) {
-                localClasses[i].hitDiceCurrent = dbClass.hitDiceCurrent;
-            }
-        }
-    }
-
     // 监听职业数据变化，自动计算总等级和熟练加值
     watch(() => data.value.classes, () => {
         let totalLevel = 0;
@@ -238,11 +184,13 @@ export function useCharSheetData() {
 
     // 监听数据变化进行保存和外部同步
     watch(data, () => {
-        save();
-        if (skipNextSync) {
-            skipNextSync = false;
+        if (validateCharSheetData(data.value)) {
+            // 如果校验器修正了非法数据（如负数），会修改 data.value
+            // Vue 会在下一个 tick 重新触发此 watch，因此我们这里直接返回，避免保存非法中间态
             return;
         }
+
+        save();
         if (currentShapeId.value !== undefined) {
             SyncManager.syncToExternalSystems(currentShapeId.value, data.value);
         }

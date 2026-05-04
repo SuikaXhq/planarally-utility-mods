@@ -336,6 +336,9 @@ export interface GameApi {
     getShape: (shape: LocalId) => IShape;
     getGlobalId: (id: LocalId) => GlobalId | undefined;
 
+    eventBus: EventBus;
+    hooks: HookSystem;
+
     getOrLoadDataBlock: <S extends DBR, D = S>(
         repr: ModRepr,
         options?: DataBlockOptions<S, D>,
@@ -369,30 +372,57 @@ export interface ModEvents {
     init?: (meta: ApiModMeta) => Promise<void>;
     initGame?: (data: GameApi) => Promise<void>;
     loadLocation?: () => Promise<void>;
-
-    preTrackerUpdate?: (
-        id: LocalId,
-        tracker: Tracker,
-        delta: Partial<Tracker>,
-        syncTo: Sync,
-    ) => Partial<Tracker>;
-
-    onTrackerAdded?: (id: LocalId, tracker: Tracker, syncTo: Sync) => void;
-    onTrackerUpdated?: (id: LocalId, trackerId: TrackerId, delta: Partial<Tracker>, syncTo: Sync) => void;
-    onTrackerRemoved?: (id: LocalId, trackerId: TrackerId, syncTo: Sync) => void;
-
-    preCustomDataUpdate?: (
-        id: LocalId,
-        element: UiShapeCustomData,
-        delta: Partial<ApiShapeCustomData>,
-        syncTo: Sync,
-    ) => Partial<ApiShapeCustomData>;
-
-    onCustomDataAdded?: (id: LocalId, element: UiShapeCustomData, syncTo: Sync) => void;
-    onCustomDataUpdated?: (id: LocalId, elementId: ElementId, delta: Partial<ApiShapeCustomData>, syncTo: Sync) => void;
-    onCustomDataRemoved?: (id: LocalId, elementId: ElementId, syncTo: Sync) => void;
 }
 
-export { proxyModEvents } from "./eventBus.js";
 export { useTracker } from "./composables/useTracker.js";
 export { useCustomData } from "./composables/useCustomData.js";
+
+// ---------------------------------------------------------------------------
+// EventBus types (mirrors core/eventBus.ts)
+// ---------------------------------------------------------------------------
+
+export interface EventMap {
+    "customData:added": { id: LocalId; element: UiShapeCustomData; syncTo: Sync };
+    "customData:updated": { id: LocalId; elementId: ElementId; delta: Partial<ApiShapeCustomData>; syncTo: Sync };
+    "customData:removed": { id: LocalId; elementId: ElementId; syncTo: Sync };
+    "tracker:added": { id: LocalId; tracker: Tracker; syncTo: Sync };
+    "tracker:updated": { id: LocalId; trackerId: TrackerId; delta: Partial<Tracker>; syncTo: Sync };
+    "tracker:removed": { id: LocalId; trackerId: TrackerId; syncTo: Sync };
+}
+
+type EventHandler<K extends keyof EventMap> = (payload: EventMap[K]) => void | Promise<void>;
+
+export interface EventBus {
+    on<K extends keyof EventMap>(event: K, handler: EventHandler<K>): () => void;
+    once<K extends keyof EventMap>(event: K, handler: EventHandler<K>): () => void;
+    emit<K extends keyof EventMap>(event: K, payload: EventMap[K]): void;
+}
+
+// ---------------------------------------------------------------------------
+// HookSystem types (mirrors core/hooks.ts)
+// ---------------------------------------------------------------------------
+
+export interface HookMap {
+    "pre:customData:update": {
+        args: { id: LocalId; element: UiShapeCustomData; syncTo: Sync };
+        value: Partial<ApiShapeCustomData>;
+    };
+    "pre:tracker:update": {
+        args: { id: LocalId; tracker: Tracker; syncTo: Sync };
+        value: Partial<Tracker>;
+    };
+}
+
+type HookHandler<K extends keyof HookMap> = (
+    value: HookMap[K]["value"],
+    context: HookMap[K]["args"],
+) => HookMap[K]["value"];
+
+export interface HookSystem {
+    tap<K extends keyof HookMap>(hook: K, handler: HookHandler<K>): () => void;
+    pipe<K extends keyof HookMap>(
+        hook: K,
+        initialValue: HookMap[K]["value"],
+        context: HookMap[K]["args"],
+    ): HookMap[K]["value"];
+}

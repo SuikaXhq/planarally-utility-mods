@@ -15,9 +15,7 @@ function onHpChange() {
     emit('change');
 }
 
-function onAcChange(event: Event) {
-    const val = Number((event.target as HTMLInputElement).value);
-    ac.value = val;
+function onAcChange() {
     emit('change');
 }
 
@@ -40,8 +38,7 @@ const tableData = computed(() => [
 
 const conditionSuggestions = computed(() => [
     t('conditions.hidden', 'Hidden'),
-    t('conditions.weak', 'Weak'),
-    t('conditions.disguised', 'Disguised'),
+    t('conditions.stunned', 'Stunned'),
     t('conditions.prone', 'Prone'),
     t('conditions.frightened', 'Frightened'),
     t('conditions.poisoned', 'Poisoned'),
@@ -74,8 +71,8 @@ const conditionSuggestions = computed(() => [
                     <span class="hp-separator">+</span>
                     <input class="vital-input large-text" type="number" v-model="hp.temp" @change="onHpChange" />
                 </div>
-                <input v-else-if="row.type === 'ac'" class="vital-input large-text" type="number" :value="ac"
-                    @change="onAcChange" />
+                <input v-else-if="row.type === 'ac'" class="vital-input large-text" type="number" v-model="ac"
+                    @input="onAcChange" />
                 <TagInput v-else-if="row.type === 'cond'" v-model="conditions" @update:modelValue="onConditionsChange"
                     :placeholder="t('ui.addCondition', 'Add condition...')"
                     :suggestions="conditionSuggestions" />

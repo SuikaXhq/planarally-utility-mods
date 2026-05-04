@@ -1,4 +1,3 @@
-import { ref } from "vue";
 import type { GameApi, LocalId, Tracker, Sync } from "@planarally/mod-api";
 import type { CharSheetData, RecordItem } from "../data";
 import { getModifier } from "../data";
@@ -7,27 +6,116 @@ export class SyncManager {
     private static api: GameApi;
     private static t: (key: string) => string;
 
-    /** 响应式信号：外部 Tracker 变更后递增，通知 UI 刷新 */
-    public static forceReload = ref(0);
-
-    /** 防止循环更新的标志位 */
-    private static isInternalUpdate = false;
-
-    /** 记录上一次同步的核心数据快照，用于断开递归更新 */
-    private static lastSyncDataJson = "";
-
     public static init(api: GameApi, t: (key: string) => string) {
         this.api = api;
         this.t = t;
     }
 
+    public static setupEventHandlers() {
+        // Handle external tracker deletion
+        this.api.eventBus.on("tracker:removed", (payload) => {
+            const globalId = this.api.getGlobalId(payload.id);
+            if (!globalId) return;
+
+            const db = this.api.getDataBlock<Record<string, unknown>, CharSheetData>({
+                category: "shape",
+                shape: globalId,
+                name: "char-sheet",
+            });
+            if (!db) return;
+
+            const data = db.data;
+            let changed = false;
+
+            if (data.trackerMappings.hp === payload.trackerId) {
+                data.trackerMappings.hp = null;
+                changed = true;
+            }
+            if (data.trackerMappings.ac === payload.trackerId) {
+                data.trackerMappings.ac = null;
+                changed = true;
+            }
+
+            for (const [classId, trackerId] of Object.entries(data.trackerMappings.classes)) {
+                if (trackerId === payload.trackerId) {
+                    delete data.trackerMappings.classes[classId];
+                    changed = true;
+                }
+            }
+
+            for (const [recordId, trackerId] of Object.entries(data.trackerMappings.records)) {
+                if (trackerId === payload.trackerId) {
+                    delete data.trackerMappings.records[recordId];
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                db.updateData(data);
+                db.sync();
+            }
+        });
+
+        // Handle external customData updates
+        this.api.eventBus.on("customData:updated", (payload) => {
+            const globalId = this.api.getGlobalId(payload.id);
+            if (!globalId) return;
+
+            const elements = this.api.systems.customData.export(payload.id);
+            const el = elements.find(e => e.id === payload.elementId);
+            if (!el || el.source !== "advanced-char-sheet") return;
+
+            const db = this.api.getDataBlock<Record<string, unknown>, CharSheetData>({
+                category: "shape",
+                shape: globalId,
+                name: "char-sheet",
+            });
+            if (!db) return;
+
+            const data = db.data;
+            let changed = false;
+
+            if (el.prefix === this.t("ui.stats")) {
+                // Not reverse syncing stats as they are calculated modifiers
+            } else if (el.prefix === this.t("ui.characterSheet")) {
+                if (el.name === this.t("ui.ac") && typeof payload.delta.value === "number") {
+                    if (data.ac !== payload.delta.value) {
+                        data.ac = Math.max(0, payload.delta.value);
+                        changed = true;
+                    }
+                } else if (el.name === this.t("ui.proficiencyBonus") && typeof payload.delta.value === "number") {
+                    if (data.proficiencyBonus !== payload.delta.value) {
+                        data.proficiencyBonus = payload.delta.value;
+                        changed = true;
+                    }
+                }
+            }
+
+            if (changed) {
+                // Also update reactive properties if they exist
+                if (db.reactiveData && db.reactiveData.value) {
+                    db.reactiveData.value.ac = data.ac;
+                    db.reactiveData.value.proficiencyBonus = data.proficiencyBonus;
+                }
+                db.updateData(data);
+                db.sync();
+            }
+        });
+
+        this.api.eventBus.on("customData:removed", (payload) => {
+            // Unidirectional sync will just recreate it next time char sheet is saved.
+        });
+    }
+
+
     // -------------------------------------------------------------------------
-    // 通用 Tracker 同步方法
+    // Generic Tracker synchronization methods
     // -------------------------------------------------------------------------
 
     /**
-     * 同步单个 tracker 至外部系统。如果 tracker 不存在则创建，已存在则更新。
-     * 返回最终的 tracker UUID（用于更新 mapping）。
+     * Synchronize a single tracker to the external system.
+     * Creates the tracker if it doesn't exist, otherwise updates it.
+     * Returns the final tracker UUID (used for updating mappings).
      */
     private static syncSingleTracker(
         localShapeId: LocalId,
@@ -80,19 +168,24 @@ export class SyncManager {
     }
 
     // -------------------------------------------------------------------------
-    // CustomData 同步
+    // CustomData synchronization
     // -------------------------------------------------------------------------
 
     private static syncCustomData(localShapeId: LocalId, data: CharSheetData) {
         const globalId = this.api.getGlobalId(localShapeId);
         if (!globalId) return;
 
+        const elements = this.api.systems.customData.export(localShapeId);
+
         const syncCD = (prefix: string, name: string, value: number | string) => {
             const identifier = { shapeId: globalId, source: "advanced-char-sheet", prefix, name };
             const elementId = this.api.systems.customData.getElementId(identifier);
 
             if (elementId !== undefined) {
-                this.api.systems.customData.updateValue(localShapeId, elementId, value, true);
+                const el = elements.find(e => e.id === elementId);
+                if (el && el.value !== value) {
+                    this.api.systems.customData.updateValue(localShapeId, elementId, value, true);
+                }
             } else {
                 this.api.systems.customData.addElement({
                     ...identifier,
@@ -113,36 +206,20 @@ export class SyncManager {
     }
 
     // -------------------------------------------------------------------------
-    // 主入口：同步到外部系统
+    // Main entry: Sync to external systems
     // -------------------------------------------------------------------------
 
     /**
-     * 将角色卡的数据下发同步至外部系统 (CustomData & Trackers)
+     * Synchronize character sheet data down to external systems (CustomData & Trackers).
      */
     public static syncToExternalSystems(localShapeId: LocalId, data: CharSheetData) {
-        if (this.isInternalUpdate) return;
+        const globalId = this.api.getGlobalId(localShapeId);
+        if (!globalId) return;
 
-        // 仅在核心数据发生变化时才同步到外部系统，防止因 trackerMappings 更新导致的循环
-        const syncDataSnapshot = JSON.stringify({
-            hp: data.hp,
-            ac: data.ac,
-            stats: data.stats,
-            pb: data.proficiencyBonus,
-            classes: data.classes.map(c => ({ id: c.id, level: c.level, name: c.name, hitDiceCurrent: c.hitDiceCurrent })),
-            records: data.records,
-        });
-        if (syncDataSnapshot === this.lastSyncDataJson) return;
-        this.lastSyncDataJson = syncDataSnapshot;
-
-        this.isInternalUpdate = true;
-        try {
-            const globalId = this.api.getGlobalId(localShapeId);
-            if (!globalId) return;
-
-            // 1. 同步 CustomData（属性调整值、熟练加值）
+            // 1. Sync CustomData (stat modifiers, proficiency bonus)
             this.syncCustomData(localShapeId, data);
 
-            // 2. 同步固定 Trackers (HP, AC, HitDice)
+            // 2. Sync static Trackers (HP, AC, HitDice)
             const trackers = this.api.systems.trackers.getAll(localShapeId);
 
             const hpUuid = this.syncSingleTracker(
@@ -157,8 +234,8 @@ export class SyncManager {
             );
             if (data.trackerMappings.ac !== acUuid) data.trackerMappings.ac = acUuid;
 
-            // 3. 同步 records 中启用了 tracker 的项目
-            // 3a. 清理已删除 record 对应的 tracker
+            // 3. Sync items in records with trackers enabled
+            // 3a. Cleanup trackers for deleted records
             const currentRecordIds = new Set<string>();
             for (const category of ["features", "feats", "otherProficiencies"] as const) {
                 for (const item of data.records[category]) {
@@ -177,7 +254,7 @@ export class SyncManager {
                 }
             }
 
-            // 3b. 同步现有 record 的 tracker
+            // 3b. Sync trackers for existing records
             for (const category of ["features", "feats", "otherProficiencies"] as const) {
                 for (const item of data.records[category]) {
                     if (item.hasTracker && item.uses) {
@@ -202,8 +279,8 @@ export class SyncManager {
                 }
             }
 
-            // 4. 同步 classes 的 hitDice
-            // 4a. 清理已删除职业对应的 tracker
+            // 4. Sync hitDice for classes
+            // 4a. Cleanup trackers for deleted classes
             const currentClassIds = new Set(data.classes.map(c => c.id));
             for (const [classId, trackerId] of Object.entries(data.trackerMappings.classes)) {
                 if (!currentClassIds.has(classId)) {
@@ -229,22 +306,16 @@ export class SyncManager {
                     }
                 }
             }
-        } finally {
-            this.isInternalUpdate = false;
-        }
     }
 
     // -------------------------------------------------------------------------
-    // 反向同步：拦截外部 Tracker 更新
+    // Reverse synchronization: Intercept external Tracker updates
     // -------------------------------------------------------------------------
 
     /**
-     * 拦截 Tracker 更新并反向同步到角色卡 DataBlock
+     * Intercept Tracker updates and sync back to Character DataBlock.
      */
     public static handlePreTrackerUpdate(id: LocalId, tracker: Tracker, delta: Partial<Tracker>): Partial<Tracker> {
-        // 如果是由 syncToExternalSystems 触发的更新，直接返回 delta，不进行反向同步
-        if (this.isInternalUpdate) return delta;
-
         const globalId = this.api.getGlobalId(id);
         if (!globalId) return delta;
 
@@ -256,55 +327,64 @@ export class SyncManager {
 
         if (!db) return delta;
 
-        const data = db.data;
+        // 直接使用响应式代理对象（如果存在），这允许我们原地修改并自动触发 UI 渲染
+        // 完全避免了昂贵的 JSON.parse(JSON.stringify(data)) 深拷贝操作
+        const targetData = (db.reactiveData && db.reactiveData.value) ? db.reactiveData.value : db.data;
         const finalDelta = { ...delta };
         let dataChanged = false;
 
         const newValue = delta.value !== undefined ? delta.value : tracker.value;
-        const newMax = delta.maxvalue !== undefined ? delta.maxvalue : tracker.maxvalue;
 
         // 识别是哪个 Tracker
-        const isHp = data.trackerMappings.hp === tracker.uuid || tracker.name === this.t("ui.hp");
-        const isAc = data.trackerMappings.ac === tracker.uuid || tracker.name === this.t("ui.ac");
-
-        const clonedData = JSON.parse(JSON.stringify(data)) as CharSheetData;
+        const isHp = targetData.trackerMappings.hp === tracker.uuid || tracker.name === this.t("ui.hp");
+        const isAc = targetData.trackerMappings.ac === tracker.uuid || tracker.name === this.t("ui.ac");
 
         if (isHp) {
-            if (delta.maxvalue !== undefined && delta.maxvalue !== clonedData.hp.max) {
-                clonedData.hp.max = Math.max(1, delta.maxvalue);
+            // 1. 同步 Max HP
+            if (delta.maxvalue !== undefined && delta.maxvalue !== targetData.hp.max) {
+                targetData.hp.max = Math.max(1, delta.maxvalue);
                 dataChanged = true;
             }
-            const oldTotal = clonedData.hp.current + clonedData.hp.temp;
+
+            // 2. 强制 Current HP 不超过 Max HP
+            if (targetData.hp.current > targetData.hp.max) {
+                targetData.hp.current = targetData.hp.max;
+                dataChanged = true;
+            }
+
+            // 3. 处理 Tracker 数值变更
+            const oldTotal = targetData.hp.current + targetData.hp.temp;
             if (newValue !== oldTotal) {
                 const diff = newValue - oldTotal;
                 if (diff < 0) {
-                    const tempReduction = Math.min(clonedData.hp.temp, -diff);
-                    clonedData.hp.temp -= tempReduction;
-                    clonedData.hp.current = Math.max(0, clonedData.hp.current - (-diff - tempReduction));
+                    const tempReduction = Math.min(targetData.hp.temp, -diff);
+                    targetData.hp.temp -= tempReduction;
+                    targetData.hp.current = Math.max(0, targetData.hp.current - (-diff - tempReduction));
                 } else {
-                    clonedData.hp.current = Math.min(clonedData.hp.max, clonedData.hp.current + diff);
+                    targetData.hp.current = Math.min(targetData.hp.max, targetData.hp.current + diff);
                 }
                 dataChanged = true;
             }
-            finalDelta.value = clonedData.hp.current + clonedData.hp.temp;
-            finalDelta.maxvalue = clonedData.hp.max;
-            if (clonedData.trackerMappings.hp !== tracker.uuid) {
-                clonedData.trackerMappings.hp = tracker.uuid;
+
+            finalDelta.value = targetData.hp.current + targetData.hp.temp;
+            finalDelta.maxvalue = targetData.hp.max;
+            if (targetData.trackerMappings.hp !== tracker.uuid) {
+                targetData.trackerMappings.hp = tracker.uuid;
                 dataChanged = true;
             }
         } else if (isAc) {
-            if (newValue !== clonedData.ac) {
-                clonedData.ac = Math.max(0, newValue);
+            if (newValue !== targetData.ac) {
+                targetData.ac = Math.max(0, newValue);
                 dataChanged = true;
             }
-            finalDelta.value = clonedData.ac;
-            if (clonedData.trackerMappings.ac !== tracker.uuid) {
-                clonedData.trackerMappings.ac = tracker.uuid;
+            finalDelta.value = targetData.ac;
+            if (targetData.trackerMappings.ac !== tracker.uuid) {
+                targetData.trackerMappings.ac = tracker.uuid;
                 dataChanged = true;
             }
         } else {
-            // 查找是否是 records 中某个项目的 tracker
-            const result = this.findRecordItemByTrackerUuid(clonedData, tracker.uuid as string);
+            // Check if it's a tracker for an item in records
+            const result = this.findRecordItemByTrackerUuid(targetData, tracker.uuid as string);
             if (result) {
                 const item = result.item;
                 if (item.uses) {
@@ -321,8 +401,8 @@ export class SyncManager {
                     finalDelta.maxvalue = item.uses.max;
                 }
             } else {
-                // 查找是否是 classes 中某个职业的 hitDice tracker
-                const classItem = clonedData.classes.find(c => clonedData.trackerMappings.classes[c.id] === tracker.uuid);
+                // Check if it's a hitDice tracker for a class
+                const classItem = targetData.classes.find(c => targetData.trackerMappings.classes[c.id] === tracker.uuid);
                 if (classItem) {
                     if (delta.maxvalue !== undefined && delta.maxvalue !== classItem.level) {
                         finalDelta.maxvalue = classItem.level; // 不允许直接通过 tracker 修改职业等级
@@ -339,35 +419,17 @@ export class SyncManager {
         }
 
         if (dataChanged) {
-            // 响应式数据更新
-            if (db.reactiveData && db.reactiveData.value) {
-                db.reactiveData.value.hp = clonedData.hp;
-                db.reactiveData.value.ac = clonedData.ac;
-                db.reactiveData.value.trackerMappings = clonedData.trackerMappings;
-                db.reactiveData.value.records = clonedData.records;
-                db.reactiveData.value.classes = clonedData.classes;
-            }
-            
-            // 更新同步快照，防止 handlePreTrackerUpdate -> DataBlock Update -> syncToExternalSystems 产生循环
-            this.lastSyncDataJson = JSON.stringify({
-                hp: clonedData.hp,
-                ac: clonedData.ac,
-                stats: clonedData.stats,
-                pb: clonedData.proficiencyBonus,
-                classes: clonedData.classes.map(c => ({ id: c.id, level: c.level, name: c.name, hitDiceCurrent: c.hitDiceCurrent })),
-                records: clonedData.records,
-            });
-
-            db.updateData(clonedData);
+            // Because we mutated targetData (which is likely the Vue reactive proxy),
+            // Vue automatically detects the changes. We just need to persist it.
+            db.updateData(db.data);
             db.sync();
-            this.forceReload.value++;
         }
 
         return finalDelta;
     }
 
     /**
-     * 在所有 records 分类中查找绑定了指定 tracker UUID 的 RecordItem
+     * Find a RecordItem bound to the specified tracker UUID across all record categories.
      */
     private static findRecordItemByTrackerUuid(
         data: CharSheetData,

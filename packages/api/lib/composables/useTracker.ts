@@ -1,13 +1,12 @@
 import { ref, watch, onUnmounted, type Ref } from "vue";
 import type { GameApi, LocalId, Tracker } from "../main.js";
-import { modEventBus } from "../eventBus.js";
 
 export function useTracker(api: GameApi, shapeId: LocalId, trackerName: string): Ref<Tracker | undefined> {
     const trackerRef = ref<Tracker>();
     let internalCopy: Tracker | undefined;
     let isUpdatingFromPA = false;
 
-    // 1. 初始化逻辑：寻找现有的 Tracker
+    // 1. Initialization: Find existing Tracker
     const existingTrackers = api.systems.trackers.getAll(shapeId);
     const target = existingTrackers.find(t => t.name === trackerName);
     
@@ -16,8 +15,8 @@ export function useTracker(api: GameApi, shapeId: LocalId, trackerName: string):
         internalCopy = JSON.parse(JSON.stringify(target));
     }
 
-    // 2. PA -> Mod 的被动同步
-    const offUpdate = modEventBus.on("tracker:updated", (payload) => {
+    // 2. Passive synchronization from PA to Mod
+    const offUpdate = api.eventBus.on("tracker:updated", (payload) => {
         if (payload.id === shapeId && trackerRef.value && payload.trackerId === trackerRef.value.uuid) {
             isUpdatingFromPA = true;
             Object.assign(trackerRef.value, payload.delta);
@@ -26,7 +25,7 @@ export function useTracker(api: GameApi, shapeId: LocalId, trackerName: string):
         }
     });
 
-    const offAdd = modEventBus.on("tracker:added", (payload) => {
+    const offAdd = api.eventBus.on("tracker:added", (payload) => {
         if (payload.id === shapeId && payload.tracker.name === trackerName && !trackerRef.value) {
             isUpdatingFromPA = true;
             trackerRef.value = JSON.parse(JSON.stringify(payload.tracker));
@@ -35,7 +34,7 @@ export function useTracker(api: GameApi, shapeId: LocalId, trackerName: string):
         }
     });
 
-    const offRemove = modEventBus.on("tracker:removed", (payload) => {
+    const offRemove = api.eventBus.on("tracker:removed", (payload) => {
         if (payload.id === shapeId && trackerRef.value && payload.trackerId === trackerRef.value.uuid) {
             isUpdatingFromPA = true;
             trackerRef.value = undefined;
@@ -44,7 +43,7 @@ export function useTracker(api: GameApi, shapeId: LocalId, trackerName: string):
         }
     });
 
-    // 3. Mod -> PA 的主动同步
+    // 3. Active synchronization from Mod to PA
     watch(trackerRef, (newVal) => {
         if (isUpdatingFromPA || !newVal || !internalCopy) return;
 

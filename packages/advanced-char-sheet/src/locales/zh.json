@@ -125,7 +125,7 @@
         "weak": "无力",
         "disguised": "伪装",
         "prone": "倒地",
-        "frightened": "受惊",
+        "frightened": "恐慌",
         "poisoned": "中毒",
         "charmed": "魅惑",
         "restrained": "束缚",
@@ -136,6 +136,7 @@
         "paralyzed": "麻痹",
         "petrified": "石化",
         "unconscious": "昏迷",
-        "exhaustion": "力竭"
+        "exhaustion": "力竭",
+        "stunned": "震慑"
     }
 }

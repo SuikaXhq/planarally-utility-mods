@@ -1,7 +1,7 @@
-// 角色数据结构定义，存储在 ShapeDataBlock 中
+// Character data structure definition, stored in ShapeDataBlock
 import defaultData from "./configs/default_data.json";
 
-export type ProficiencyLevel = 0 | 0.5 | 1 | 2; // 无、涉猎、熟练、精通
+export type ProficiencyLevel = 0 | 0.5 | 1 | 2; // None, Jack of all trades, Proficient, Expert
 
 export interface CharacterStats {
     [key: string]: number;
@@ -39,7 +39,7 @@ export interface ClassItem {
     hitDiceCurrent: number;
 }
 
-// 物品/武器定义
+// Item/Weapon definition
 export interface Item {
     id: string;
     name: string;
@@ -47,10 +47,10 @@ export interface Item {
     quantity: number;
     remark: string;
     tags: string[];
-    hitBonus?: number;   // 命中加值
-    damageDice?: string; // 伤害骰
-    damageBonus?: number; // 伤害加值
-    scalingStat?: 'str' | 'dex'; // 主要属性：力量或敏捷
+    hitBonus?: number;   // Hit bonus
+    damageDice?: string; // Damage dice
+    damageBonus?: number; // Damage bonus
+    scalingStat?: 'str' | 'dex'; // Primary scaling stat: STR or DEX
 }
 
 export interface TrackerMappings {
